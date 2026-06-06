@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Communication Graph — Underground Mining</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+    #graph-container { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 14px 20px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    header h1 { font-size: 15px; font-weight: 500; color: #e0e0e0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .legend-line { width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+    #graph { flex: 1; overflow: hidden; }
+    .node-label { font-size: 12px; fill: #e0e0e0; text-anchor: middle; pointer-events: none; font-family: Arial, sans-serif; }
+    .tooltip { position: absolute; background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #e0e0e0; pointer-events: none; display: none; line-height: 1.6; z-index: 100; }
+    .tooltip strong { color: #fff; }
+  </style>
+</head>
+<body>
+<div id="graph-container">
+  <header>
+    <h1>Agent Communication Graph — Underground Mining</h1>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4CAF50"></div>Vision</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2196F3"></div>Geomechanical</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF5722"></div>Gas</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9C27B0"></div>Monitor</div>
+      <div class="legend-item"><div class="legend-line" style="background:#F44336"></div>Alert</div>
+      <div class="legend-item"><div class="legend-line" style="background:#2196F3"></div>Query</div>
+      <div class="legend-item"><div class="legend-line" style="background:#FFC107"></div>Report</div>
+    </div>
+  </header>
+  <div id="graph"></div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<script>
+const NODES = [{"id": "VisionAgent", "tipo": "vision", "active": true, "degree": 0.6667, "betweenness": 0.0, "pagerank": 0.1734, "closeness": 0.6}, {"id": "GeomechanicalAgent", "tipo": "geomechanical", "active": true, "degree": 0.6667, "betweenness": 0.0, "pagerank": 0.1734, "closeness": 0.6}, {"id": "GasAgent", "tipo": "gas", "active": true, "degree": 0.6667, "betweenness": 0.0, "pagerank": 0.1734, "closeness": 0.6}, {"id": "MonitorAgent", "tipo": "monitor", "active": true, "degree": 2.0, "betweenness": 1.0, "pagerank": 0.4797, "closeness": 1.0}];
+const LINKS = [{"source": "GasAgent", "target": "MonitorAgent", "type": "alert", "weight": 1.0, "frequency": "every_1min", "messages": 0}, {"source": "GeomechanicalAgent", "target": "MonitorAgent", "type": "alert", "weight": 0.8, "frequency": "every_5min", "messages": 0}, {"source": "VisionAgent", "target": "MonitorAgent", "type": "report", "weight": 0.6, "frequency": "every_10min", "messages": 0}, {"source": "MonitorAgent", "target": "VisionAgent", "type": "query", "weight": 0.5, "frequency": "every_10min", "messages": 0}, {"source": "MonitorAgent", "target": "GasAgent", "type": "query", "weight": 0.5, "frequency": "every_10min", "messages": 0}, {"source": "MonitorAgent", "target": "GeomechanicalAgent", "type": "query", "weight": 0.5, "frequency": "every_10min", "messages": 0}];
+const NODE_COLORS = {"vision": "#4CAF50", "geomechanical": "#2196F3", "gas": "#FF5722", "monitor": "#9C27B0"};
+const EDGE_COLORS = {"alert": "#F44336", "query": "#2196F3", "report": "#FFC107"};
+
+const container = document.getElementById("graph");
+const tooltip   = document.getElementById("tooltip");
+
+function getSize() {
+  return { w: container.clientWidth, h: container.clientHeight };
+}
+
+let { w: width, h: height } = getSize();
+
+const svg = d3.select("#graph")
+  .append("svg")
+  .attr("width", width)
+  .attr("height", height);
+
+const zoomG = svg.append("g");
+
+svg.call(
+  d3.zoom()
+    .scaleExtent([0.3, 5])
+    .on("zoom", ev => zoomG.attr("transform", ev.transform))
+);
+
+// One marker per edge type
+const defs = svg.append("defs");
+
+Object.entries(EDGE_COLORS).forEach(([edge_type, color]) => {
+  defs.append("marker")
+    .attr("id", `arrow-${edge_type}`)
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 10)
+    .attr("refY", 0)
+    .attr("markerWidth",  6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("fill", color)
+    .attr("d", "M0,-5L10,0L0,5");
+});
+
+// Node size scale
+const maxB      = Math.max(...NODES.map(n => n.betweenness), 0.001);
+const sizeScale = d3.scaleSqrt().domain([0, maxB]).range([12, 32]);
+
+// Force simulation
+const simulation = d3.forceSimulation(NODES)
+  .force("link",      d3.forceLink(LINKS).id(d => d.id).distance(160).strength(0.8))
+  .force("charge",    d3.forceManyBody().strength(-600))
+  .force("center",    d3.forceCenter(width / 2, height / 2))
+  .force("collision", d3.forceCollide().radius(d => sizeScale(d.betweenness) + 30));
+
+// Edges
+const link = zoomG.append("g")
+  .selectAll("path")
+  .data(LINKS)
+  .join("path")
+  .attr("stroke",         d => EDGE_COLORS[d.type] || "#666")
+  .attr("stroke-opacity", 0.75)
+  .attr("stroke-width",   d => Math.max(1.5, d.weight * 3))
+  .attr("fill",           "none")
+  .attr("marker-end",     d => `url(#arrow-${d.type})`);
+
+// Nodes
+const node = zoomG.append("g")
+  .selectAll("circle")
+  .data(NODES)
+  .join("circle")
+  .attr("r",            d => sizeScale(d.betweenness))
+  .attr("fill",         d => NODE_COLORS[d.tipo] || "#9E9E9E")
+  .attr("stroke",       "#fff")
+  .attr("stroke-width", 2)
+  .style("cursor",      "pointer")
+  .call(
+    d3.drag()
+      .on("start", (ev, d) => { if (!ev.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on("drag",  (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
+      .on("end",   (ev, d) => { if (!ev.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+  );
+
+// Labels
+const label = zoomG.append("g")
+  .selectAll("text")
+  .data(NODES)
+  .join("text")
+  .attr("class", "node-label")
+  .text(d => d.id.replace("Agent", ""));
+
+// Link path with bidirectional detection and curvature
+function linkPath(d) {
+  const src = d.source, tgt = d.target;
+  const dx  = tgt.x - src.x;
+  const dy  = tgt.y - src.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  const r_src = sizeScale(src.betweenness);
+  const r_tgt = sizeScale(tgt.betweenness);
+
+  // Start and end at node border
+  const sx = src.x + (dx / len) * r_src;
+  const sy = src.y + (dy / len) * r_src;
+  const ex = tgt.x - (dx / len) * (r_tgt + 6);
+  const ey = tgt.y - (dy / len) * (r_tgt + 6);
+
+  // Perpendicular normal
+  const nx = -dy / len;
+  const ny =  dx / len;
+
+  // Detect bidirectional edge
+  const isPair = LINKS.some(l =>
+    (l.source.id || l.source) === (d.target.id || d.target) &&
+    (l.target.id || l.target) === (d.source.id || d.source)
+  );
+  const curvature = isPair ? 40 : 0;
+
+  const mx = (sx + ex) / 2 + nx * curvature;
+  const my = (sy + ey) / 2 + ny * curvature;
+
+  return curvature === 0
+    ? `M${sx},${sy} L${ex},${ey}`
+    : `M${sx},${sy} Q${mx},${my} ${ex},${ey}`;
+}
+
+// Tick
+simulation.on("tick", () => {
+  link.attr("d", linkPath);
+  node.attr("cx", d => d.x).attr("cy", d => d.y);
+  label
+    .attr("x", d => d.x)
+    .attr("y", d => d.y + sizeScale(d.betweenness) + 16);
+});
+
+// Tooltips — nodes
+node
+  .on("mouseover", (ev, d) => {
+    tooltip.style.display = "block";
+    tooltip.innerHTML = `<strong>${d.id}</strong><br>Type: ${d.type}<br>Active: ${d.active}<br>Degree: ${d.degree.toFixed(3)}<br>Betweenness: ${d.betweenness.toFixed(3)}<br>PageRank: ${d.pagerank.toFixed(4)}<br>Closeness: ${d.closeness.toFixed(3)}`;
+    d3.select(ev.currentTarget).attr("stroke-width", 3);
+  })
+  .on("mousemove", ev => {
+    tooltip.style.left = (ev.pageX + 14) + "px";
+    tooltip.style.top  = (ev.pageY - 28) + "px";
+  })
+  .on("mouseout", ev => {
+    tooltip.style.display = "none";
+    d3.select(ev.currentTarget).attr("stroke-width", 2);
+  });
+
+// Tooltips — edges
+link
+  .on("mouseover", (ev, d) => {
+    tooltip.style.display = "block";
+    const sid = d.source.id || d.source;
+    const tid = d.target.id || d.target;
+    tooltip.innerHTML = `<strong>${sid} → ${tid}</strong><br>Type: ${d.type}<br>Weight: ${d.weight}<br>Frequency: ${d.frequency}<br>Messages: ${d.messages}`;
+    d3.select(ev.currentTarget).attr("stroke-opacity", 1).attr("stroke-width", d.weight * 4 + 1);
+  })
+  .on("mousemove", ev => {
+    tooltip.style.left = (ev.pageX + 14) + "px";
+    tooltip.style.top  = (ev.pageY - 28) + "px";
+  })
+  .on("mouseout", (ev, d) => {
+    tooltip.style.display = "none";
+    d3.select(ev.currentTarget).attr("stroke-opacity", 0.75).attr("stroke-width", Math.max(1.5, d.weight * 3));
+  });
+
+// Resize
+window.addEventListener("resize", () => {
+  const { w, h } = getSize();
+  svg.attr("width", w).attr("height", h);
+  simulation.force("center", d3.forceCenter(w / 2, h / 2)).alpha(0.3).restart();
+});
+</script>
+</body>
+</html>

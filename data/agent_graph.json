@@ -1,0 +1,97 @@
+{
+  "nodes": {
+    "VisionAgent": {
+      "id": "VisionAgent",
+      "type": "vision",
+      "active": true,
+      "reporting_frequency": "every_10min",
+      "alert_threshold": 0.7,
+      "alerts_sent": 0,
+      "alerts_received": 0
+    },
+    "GeomechanicalAgent": {
+      "id": "GeomechanicalAgent",
+      "type": "geomechanical",
+      "active": true,
+      "reporting_frequency": "every_5min",
+      "alert_threshold": 0.5,
+      "alerts_sent": 0,
+      "alerts_received": 0
+    },
+    "GasAgent": {
+      "id": "GasAgent",
+      "type": "gas",
+      "active": true,
+      "reporting_frequency": "every_1min",
+      "alert_threshold": 0.3,
+      "alerts_sent": 0,
+      "alerts_received": 0
+    },
+    "MonitorAgent": {
+      "id": "MonitorAgent",
+      "type": "monitor",
+      "active": true,
+      "reporting_frequency": "every_1min",
+      "alert_threshold": 0.5,
+      "alerts_sent": 0,
+      "alerts_received": 0
+    }
+  },
+  "edges": {
+    "GasAgent->MonitorAgent": {
+      "source": "GasAgent",
+      "target": "MonitorAgent",
+      "type": "alert",
+      "weight": 1.0,
+      "frequency": "every_1min",
+      "messages_sent": 0,
+      "last_communication": null
+    },
+    "GeomechanicalAgent->MonitorAgent": {
+      "source": "GeomechanicalAgent",
+      "target": "MonitorAgent",
+      "type": "alert",
+      "weight": 0.8,
+      "frequency": "every_5min",
+      "messages_sent": 0,
+      "last_communication": null
+    },
+    "VisionAgent->MonitorAgent": {
+      "source": "VisionAgent",
+      "target": "MonitorAgent",
+      "type": "report",
+      "weight": 0.6,
+      "frequency": "every_10min",
+      "messages_sent": 0,
+      "last_communication": null
+    },
+    "MonitorAgent->VisionAgent": {
+      "source": "MonitorAgent",
+      "target": "VisionAgent",
+      "type": "query",
+      "weight": 0.5,
+      "frequency": "every_10min",
+      "messages_sent": 0,
+      "last_communication": null
+    },
+    "MonitorAgent->GasAgent": {
+      "source": "MonitorAgent",
+      "target": "GasAgent",
+      "type": "query",
+      "weight": 0.5,
+      "frequency": "every_10min",
+      "messages_sent": 0,
+      "last_communication": null
+    },
+    "MonitorAgent->GeomechanicalAgent": {
+      "source": "MonitorAgent",
+      "target": "GeomechanicalAgent",
+      "type": "query",
+      "weight": 0.5,
+      "frequency": "every_10min",
+      "messages_sent": 0,
+      "last_communication": null
+    }
+  },
+  "centrality": null
+}
