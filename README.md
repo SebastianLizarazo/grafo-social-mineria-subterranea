@@ -17,6 +17,7 @@ grafo-social-mineria-subterranea/
 ├── tests/
 │   └── test_agent_graph.py  # Suite de tests (49 tests)
 ├── venv/                    # Entorno virtual Python
+├── requirements.txt        # Dependencias del proyecto
 └── README.md               # Este archivo
 ```
 
@@ -25,23 +26,23 @@ grafo-social-mineria-subterranea/
 ## Requisitos
 
 - Python 3.10+
-- Entorno virtual (venv) — ya configurado en `venv/`
-
-### Dependencias instaladas
-
-```
-networkx, numpy, scipy, pandas, pytest
-```
+- Entorno virtual (venv)
 
 ---
 
-## Instalación rápida
+## Instalación
 
 ```bash
-# Si no tenés el entorno virtual creado:
+# Clonar el repositorio
+git clone https://github.com/SebastianLizarazo/grafo-social-mineria-subterranea.git
+cd grafo-social-mineria-subterranea
+
+# Crear entorno virtual
 python -m venv venv
+
+# Instalar dependencias
 .\venv\Scripts\python.exe -m pip install --upgrade pip
-.\venv\Scripts\python.exe -m pip install numpy networkx scipy pandas pytest
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ---
